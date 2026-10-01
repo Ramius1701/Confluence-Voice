@@ -228,8 +228,12 @@ After that:
    GitHub Release from a version tag. Still open: code signing so SmartScreen does not
    warn (needs a certificate), and a winget or Scoop package.
 7. **Moderator mute.** Estate and group moderators muting another person, a feature
-   Vivox had. The protocol field exists; the server currently always reports it as
-   `false`.
+   Vivox had. Scoped 2026-10-01, bigger than it looks: the roster's `"m"` field is
+   outbound-only (server → viewer, display) — nothing in `ViewerDataMessage` (everything
+   the data channel actually carries) identifies a sender as a moderator or names who to
+   mute. This needs a genuinely new JSON-RPC method and a decision about where the
+   request originates (region-side moderation UI? group/estate permissions checked by
+   whom?) before any server-side code, not just flipping the always-`false` flag.
 
 On hold: a Windows Service wrapper (start automatically, no console window). For
 reference when this resumes: wolfvoice's `contrib/wolfvoice.service` restarts on crash
