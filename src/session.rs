@@ -344,6 +344,14 @@ pub async fn establish(
     runtime: Arc<dyn Runtime>,
     ice_servers: Vec<RTCIceServer>,
 ) -> Result<Endpoint, String> {
+    // Timing instrumentation added 2026-10-01 to investigate the region-border-crossing
+    // instability documented in README.md's Known limitations: a crossing tears down and
+    // rebuilds the whole connection, and if that rebuild is slow, rapid crossings never
+    // let it finish. Previously the logs had no sub-second timing at all, so there was no
+    // way to tell whether GATHER_TIMEOUT was actually being hit in practice or whether the
+    // delay was purely client-side (DTLS/ICE connectivity checks we cannot see from here).
+    let establish_started = std::time::Instant::now();
+
     // Opus only — this is a voice service and offering anything else just invites
     // the viewer to negotiate something we cannot mix.
     let opus = RTCRtpCodecParameters {
@@ -460,10 +468,12 @@ pub async fn establish(
     // so this must stay well under that. If gathering has not finished we return what
     // we have rather than failing the provision outright — a partial candidate list is
     // still better than none.
+    let gather_started = std::time::Instant::now();
     let deadline = tokio::time::Instant::now() + GATHER_TIMEOUT;
     while !gathered.load(Ordering::SeqCst) && tokio::time::Instant::now() < deadline {
         tokio::time::sleep(Duration::from_millis(20)).await;
     }
+    let gather_elapsed = gather_started.elapsed();
     if !gathered.load(Ordering::SeqCst) {
         log::warn!(
             "session {}: ICE gathering did not complete within {:?}; answering with a \
@@ -471,6 +481,8 @@ pub async fn establish(
             session.id,
             GATHER_TIMEOUT
         );
+    } else {
+        log::info!("session {} ICE gathering took {:?}", session.id, gather_elapsed);
     }
 
     let local = pc
@@ -520,6 +532,13 @@ pub async fn establish(
         opus::Application::Voip,
     )
     .map_err(|e| format!("opus encoder: {e}"))?;
+
+    log::info!(
+        "session {} establish() took {:?} total (gather {:?} of that)",
+        session.id,
+        establish_started.elapsed(),
+        gather_elapsed
+    );
 
     Ok(Endpoint {
         session,
