@@ -1,7 +1,7 @@
-ConfluenceVoice
+Confluence-Voice
 Copyright 2026 Ramius1701
 
-ConfluenceVoice is a derivative work of wolfvoice:
+Confluence-Voice is a derivative work of wolfvoice:
 
     wolfvoice
     Copyright 2026 Wolf Software Systems Ltd
@@ -11,7 +11,7 @@ ConfluenceVoice is a derivative work of wolfvoice:
     (https://wolf.uk.com) for the Wolf Territories Grid (https://wolfterritories.org).
 
 The protocol handling, spatial mixer and session logic are carried over from
-wolfvoice largely unchanged. What differs in ConfluenceVoice is packaging for
+wolfvoice largely unchanged. What differs in Confluence-Voice is packaging for
 Windows: configuration is read from a TOML file next to the executable instead
 of environment variables and hardcoded Unix paths (see src/config.rs), so it
 runs like a normal Windows program rather than a system service.
@@ -30,13 +30,13 @@ limitations under the License.
 
 ---
 
-ConfluenceVoice interoperates with, but does not include, the following
+Confluence-Voice interoperates with, but does not include, the following
 third-party projects (carried forward from wolfvoice's own NOTICE):
 
   * os-webrtc-janus by Robert Adams (Mozilla Public License 2.0)
     https://github.com/Misterblue/os-webrtc-janus
     Supplies the OpenSimulator region-side capability handlers and the JSON-RPC
-    connector that ConfluenceVoice receives requests from.
+    connector that Confluence-Voice receives requests from.
 
   * OpenSimulator (BSD 3-Clause)
     http://opensimulator.org

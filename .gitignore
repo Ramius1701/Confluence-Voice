@@ -6,7 +6,7 @@
 .env
 
 # Generated on first run; instance-specific (public IP, port range).
-/confluencevoice.toml
+/confluence-voice.toml
 /tls/
 
 # Packaged builds for distribution, not source.

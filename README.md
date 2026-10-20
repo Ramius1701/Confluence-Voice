@@ -1,4 +1,4 @@
-# ConfluenceVoice
+# Confluence-Voice
 
 Spatial WebRTC voice for [OpenSimulator](http://opensimulator.org) — a **Windows-native**
 voice server so Firestorm and browser-based viewers can hear each other positionally,
@@ -12,8 +12,8 @@ Grids that already have Vivox set up can still get voice from it today, but nobo
 outside Vivox knows for how long, so operators need a replacement they control before
 it stops. The existing WebRTC voice backend for OpenSim
 ([wolfvoice](https://github.com/intelligentwolf/wolfvoice)) is built for Linux, with
-Docker or WSL as the route for everyone else. ConfluenceVoice gives Windows grid
-operators another option: a single `confluencevoice.exe` that runs directly on Windows,
+Docker or WSL as the route for everyone else. Confluence-Voice gives Windows grid
+operators another option: a single `confluence-voice.exe` that runs directly on Windows,
 configured by one `.toml` file, with no Linux VM, container or WSL layer to install and
 maintain.
 
@@ -26,20 +26,20 @@ was developed and first tested.
 preference. wolfvoice is the same idea but needs Linux, Docker or WSL. ThinkVox is a
 hosted service: free for 10 concurrent users, then priced per tier ($19/mo for 50,
 $49/mo for 200, $149/mo for 1,000, per their site). Vivox needs no server of your own
-either, but it's the thing running out — see above. ConfluenceVoice costs only your own
+either, but it's the thing running out — see above. Confluence-Voice costs only your own
 hardware and bandwidth, with no account, no per-user pricing and no external service in
 the voice path, at the cost of running and maintaining it yourself.
 
 **Best on a grid where every region speaks WebRTC.** That's the configuration this
 project tests against, and where the checklist in [docs/TESTING.md](docs/TESTING.md) is
-being filled in. The Casperia grid ConfluenceVoice was developed on migrated all 15 of
+being filled in. The Casperia grid Confluence-Voice was developed on migrated all 15 of
 its regions off Vivox to WebRTC-only in a single pass (2026-09-27), replacing it
 entirely rather than running both side by side — each region's config kept a
 `.pre-confluencevoice.bak` rollback copy from that migration. A grid that mixes WebRTC
 with Vivox or ThinkVox regions works too, but hits a real Firestorm quirk — see "Known
 limitations" below — that a single-voice-system grid never encounters.
 
-ConfluenceVoice is an independent project, derived from
+Confluence-Voice is an independent project, derived from
 [wolfvoice](https://github.com/intelligentwolf/wolfvoice) by Wolf Software Systems
 Ltd, which is used as a donor of code and ideas — this is not a GitHub fork and
 shares no git history with it. See [NOTICE](NOTICE) for full attribution. The
@@ -53,7 +53,7 @@ It is a **voice service backend for
 Robert Adams; Wolf Software Systems maintains a fork at
 [intelligentwolf/os-webrtc-janus](https://github.com/intelligentwolf/os-webrtc-janus)). That
 addon does the OpenSimulator half — capabilities, provider advertisement, session
-bookkeeping — and ConfluenceVoice is what you point it at instead of a Janus
+bookkeeping — and Confluence-Voice is what you point it at instead of a Janus
 gateway.
 
 ```
@@ -63,7 +63,7 @@ Firestorm 7.1.10+  /  browser viewer
 OpenSim region  +  os-webrtc-janus addon   ← REQUIRED
         │          forwards the caps onward as JSON-RPC
         ▼
-   ConfluenceVoice  ── answers the SDP, terminates DTLS/SRTP/SCTP,
+   Confluence-Voice  ── answers the SDP, terminates DTLS/SRTP/SCTP,
         │              mixes a SEPARATE stream per listener
         ▼
    viewers   (UDP media)
@@ -74,7 +74,7 @@ OpenSim region  +  os-webrtc-janus addon   ← REQUIRED
 **os-webrtc-janus is a hard requirement.** It supplies `WebRtcVoice.dll` and the
 region-side capability handlers that everything here depends on. See
 [docs/OPENSIM.md](docs/OPENSIM.md) for building it — that side is unaffected by
-which backend (wolfvoice or ConfluenceVoice) you point it at.
+which backend (wolfvoice or Confluence-Voice) you point it at.
 
 **For the voice server (this program)**
 
@@ -95,7 +95,7 @@ browser viewers need a client speaking the same contract
 ### 1. Get the exe
 
 Build it yourself (see below), or use a release build if one's been provided to
-you. Put `confluencevoice.exe` in its own folder — it will create its config file
+you. Put `confluence-voice.exe` in its own folder — it will create its config file
 and expects its TLS certificate next to itself.
 
 ### 2. Configure it
@@ -103,10 +103,10 @@ and expects its TLS certificate next to itself.
 Run it once:
 
 ```powershell
-.\confluencevoice.exe
+.\confluence-voice.exe
 ```
 
-The first run creates `confluencevoice.toml` beside the exe and exits, telling you
+The first run creates `confluence-voice.toml` beside the exe and exits, telling you
 where. Open it and set at least `public_ip`:
 
 ```toml
@@ -120,14 +120,14 @@ tls_key = "tls\\privkey.pem"
 ```
 
 Place your certificate and key at the `tls_cert` / `tls_key` paths (relative paths
-resolve against the folder the config file is in). Run `.\confluencevoice.exe`
+resolve against the folder the config file is in). Run `.\confluence-voice.exe`
 again.
 
 ### 3. Open the firewall
 
 ```powershell
-New-NetFirewallRule -DisplayName "ConfluenceVoice RPC" -Direction Inbound -Protocol TCP -LocalPort 9443 -Action Allow
-New-NetFirewallRule -DisplayName "ConfluenceVoice Media" -Direction Inbound -Protocol UDP -LocalPort 40000-40999 -Action Allow
+New-NetFirewallRule -DisplayName "Confluence-Voice RPC" -Direction Inbound -Protocol TCP -LocalPort 9443 -Action Allow
+New-NetFirewallRule -DisplayName "Confluence-Voice Media" -Direction Inbound -Protocol UDP -LocalPort 40000-40999 -Action Allow
 ```
 
 Scope the RPC rule to your region hosts' IPs if your firewall profile allows it —
@@ -135,7 +135,7 @@ that port has no authentication of its own.
 
 ### 4. Point os-webrtc-janus at it, and configure the region
 
-Same as upstream from here — see [`contrib/confluencevoice.ini`](contrib/confluencevoice.ini)
+Same as upstream from here — see [`contrib/confluence-voice.ini`](contrib/confluence-voice.ini)
 and [docs/OPENSIM.md](docs/OPENSIM.md). Both **estate** and **parcel** voice flags
 must be enabled or nothing will happen and nothing will log — see
 [docs/OPENSIM.md](docs/OPENSIM.md#allow-voice) for details.
@@ -150,7 +150,7 @@ stays greyed out. Set `StunServers` in the ini (see the template) and use an
 
 ```powershell
 curl.exe -k https://voice.example.org:9443/
-# {"rooms":0,"service":"confluencevoice","sessions":0}
+# {"rooms":0,"service":"confluence-voice","sessions":0}
 ```
 
 ## Building from source
@@ -170,8 +170,8 @@ CMake's own documented escape hatch, not a fragile hack. Without it the build st
 with "Compatibility with CMake < 3.5 has been removed from CMake". Use a recent CMake
 (4.x) so it also recognises current Visual Studio versions.
 
-The built binary is at `target\release\confluencevoice.exe`. Copy it, together with
-your `confluencevoice.toml` and `tls\` folder, wherever you want to run it from.
+The built binary is at `target\release\confluence-voice.exe`. Copy it, together with
+your `confluence-voice.toml` and `tls\` folder, wherever you want to run it from.
 
 ## Status
 
@@ -193,12 +193,12 @@ Next, in order:
    person-to-person calls. Progress is tracked in the checklist in
    [docs/TESTING.md](docs/TESTING.md); a release should only claim what is ticked there.
 2. **A shared secret for the voice port.** TCP 9443 now supports an IP allow-list
-   (`allowed_region_ips` in `confluencevoice.toml`, checked before the TLS handshake) —
+   (`allowed_region_ips` in `confluence-voice.toml`, checked before the TLS handshake) —
    done. A shared-secret scheme on top of that is not: the region-side connector
    (`os-webrtc-janus`'s `WebRtcVoiceServiceConnector.cs`) has no way to send one today, so
-   this needs a matching region-side change first, not just a ConfluenceVoice one.
+   this needs a matching region-side change first, not just a Confluence-Voice one.
 3. ~~TURN relay support~~ **Done.** `turn_urls`/`turn_username`/`turn_credential` in
-   `confluencevoice.toml` are passed to viewers as a relay of last resort. Verified that a
+   `confluence-voice.toml` are passed to viewers as a relay of last resort. Verified that a
    configured TURN server doesn't break normal connections; **not yet verified against a
    real TURN server actually relaying media** for a viewer that needs one.
 
@@ -214,7 +214,7 @@ After that:
 5. **Reliability.** Done: a status endpoint (`GET /`) reporting version, uptime, session
    counts, cumulative skipped-tick count, and whether auth/TURN are configured; config
    validation that rejects bad IP entries and incomplete TURN setup at startup with a
-   clear message; and a local admin dashboard (`admin_bind` in `confluencevoice.toml`,
+   clear message; and a local admin dashboard (`admin_bind` in `confluence-voice.toml`,
    loopback-only by default, auto-refreshing) with live status, sessions grouped by room
    with a per-session Kick button, a recent warnings/errors log panel, an
    unexpected-restart flag (uptime reset without the admin page's own Restart button
@@ -270,7 +270,7 @@ service).
 
 ## What's different from wolfvoice
 
-- **Configuration**: `confluencevoice.toml` next to the exe, not
+- **Configuration**: `confluence-voice.toml` next to the exe, not
   `WOLFVOICE_PUBLIC_IP` and hardcoded `/etc/wolfvoice/tls/...` paths (see
   [`src/config.rs`](src/config.rs)).
 - **No installer, no systemd unit**: this is meant to be run directly, the way any
@@ -278,7 +278,7 @@ service).
   automatically and run without a console window) is not implemented and is on hold
   for now; run it from a console, or start it yourself with Task Scheduler.
 - Session IDs are prefixed `cv-` instead of `wv-`; the health endpoint reports
-  `"service": "confluencevoice"`. Everything on the wire to Firestorm/OpenSim is
+  `"service": "confluence-voice"`. Everything on the wire to Firestorm/OpenSim is
   unchanged — those prefixes are purely internal/log labels.
 
 ## Known limitations
@@ -289,7 +289,7 @@ region, so voice fails in the Vivox regions until voice is toggled off and on in
 Preferences → Sound & Media → Voice (no relog needed) — or, if the thing that actually
 failed was a real attempt to reach Vivox's own servers rather than a rejection, not even
 that works and a full relog is needed instead (confirmed live, 2026-09-27). This is a
-Firestorm behaviour, not something ConfluenceVoice can fix on its own. A region-side fix
+Firestorm behaviour, not something Confluence-Voice can fix on its own. A region-side fix
 exists — the WebRTC module hands Vivox-type requests to the Vivox module instead of
 rejecting them, so the viewer's Vivox client gets real credentials and never gives up —
 committed to [OpenSim-Confluence](https://github.com/Ramius1701/OpenSim-Confluence)
@@ -309,14 +309,14 @@ hits this. Details in [docs/TESTING.md](docs/TESTING.md).
 - **A failed provision request is not retried by the viewer.** Firestorm makes one
   attempt at `ProvisionVoiceAccountRequest` and does not retry on its own if that single
   attempt hits a transient failure (confirmed live: a momentary connection refusal
-  against an otherwise healthy, half-hour-stable ConfluenceVoice instance was enough to
+  against an otherwise healthy, half-hour-stable Confluence-Voice instance was enough to
   permanently fail one viewer's voice while a second viewer connected normally seconds
   later). The region-side connector now retries a failed round trip up to 3 times with a
   short backoff before giving up, masking most transient hiccups from the viewer
   entirely — but this is a region-side (`os-webrtc-janus`) fix, not something
-  ConfluenceVoice itself can do, and it does not help if ConfluenceVoice is down for
+  Confluence-Voice itself can do, and it does not help if Confluence-Voice is down for
   longer than that.
-- **TURN is supported but unverified against a real relay.** `confluencevoice.toml` can
+- **TURN is supported but unverified against a real relay.** `confluence-voice.toml` can
   point viewers at a TURN server (see Roadmap above) — unlike upstream wolfvoice, which
   has no way to add one. Without one configured, the situation is the same as upstream:
   Firestorm hardcodes its own STUN servers to `stun:stunN.<grid>.secondlife.io`, which
@@ -324,7 +324,7 @@ hits this. Details in [docs/TESTING.md](docs/TESTING.md).
   server advertises a routable host candidate and learns the viewer's address from the
   connectivity check), but a viewer whose network blocks outbound UDP entirely gets no
   voice.
-- **Single instance.** If ConfluenceVoice is down, voice is down everywhere it is
+- **Single instance.** If Confluence-Voice is down, voice is down everywhere it is
   configured.
 - **Group and IM voice** (`channel_type: multiagent`) is implemented and rooms are
   keyed correctly, but has had far less exercise than spatial voice.
@@ -336,7 +336,7 @@ longer works for most operators. Facts below are as of September 2026; check eac
 project's own pages before relying on them.
 
 - **[wolfvoice](https://github.com/intelligentwolf/wolfvoice)** — the project
-  ConfluenceVoice is derived from. Same WebRTC design, self-hosted and free. Built for
+  Confluence-Voice is derived from. Same WebRTC design, self-hosted and free. Built for
   Linux (a Linux host with systemd); on Windows it means Docker or WSL. Choose it if
   your voice server is Linux.
 - **[ThinkVox](https://thinkvox.cloud/)** — a hosted, paid service (a free tier and
@@ -345,7 +345,7 @@ project's own pages before relying on them.
   For older Firestorm it asks users to swap in a replacement `SLVoice` binary, and the
   download its onboarding offered was for Linux x64. Choose it if you would rather not
   run a voice server yourself.
-- **ConfluenceVoice** — self-hosted and free, a single `.exe` on Windows, with no
+- **Confluence-Voice** — self-hosted and free, a single `.exe` on Windows, with no
   per-user pricing and no third-party service in the voice path. Firestorm 7.1.10+
   uses WebRTC natively, so viewers need no replacement files.
 

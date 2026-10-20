@@ -9,7 +9,7 @@ use serde::Deserialize;
 use std::net::IpAddr;
 use std::path::{Path, PathBuf};
 
-pub const CONFIG_FILENAME: &str = "confluencevoice.toml";
+pub const CONFIG_FILENAME: &str = "confluence-voice.toml";
 
 /// Everything the service needs, after defaults and path resolution.
 pub struct Config {
@@ -62,7 +62,7 @@ pub struct Config {
 
     /// TURN server(s) to hand viewers as a relay of last resort, for networks that
     /// block outbound UDP to anywhere but a known relay. Optional: without one, those
-    /// viewers get no voice at all, same as upstream wolfvoice. ConfluenceVoice does
+    /// viewers get no voice at all, same as upstream wolfvoice. Confluence-Voice does
     /// not run a TURN server itself — point this at your own (e.g. coturn) or a paid
     /// TURN provider.
     pub turn_urls: Vec<String>,
@@ -102,9 +102,9 @@ const DEFAULT_MAX_SESSIONS: usize = 900;
 const DEFAULT_TLS_CERT: &str = "tls\\fullchain.pem";
 const DEFAULT_TLS_KEY: &str = "tls\\privkey.pem";
 
-const TEMPLATE: &str = r#"# ConfluenceVoice configuration.
+const TEMPLATE: &str = r#"# Confluence-Voice configuration.
 #
-# Edit this file, then start confluencevoice.exe again. Relative paths below
+# Edit this file, then start confluence-voice.exe again. Relative paths below
 # are resolved against the folder this file is in, not wherever you launched
 # the exe from.
 
@@ -150,7 +150,7 @@ tls_key = "tls\\privkey.pem"
 
 # OPTIONAL. A TURN relay for viewers whose network blocks outbound UDP to anywhere
 # but a known relay server — without one, those viewers get no voice at all.
-# ConfluenceVoice does not run a TURN server itself; point this at your own
+# Confluence-Voice does not run a TURN server itself; point this at your own
 # (e.g. coturn) or a paid TURN provider.
 # turn_urls = ["turn:turn.example.com:3478"]
 # turn_username = "user"
@@ -167,7 +167,7 @@ tls_key = "tls\\privkey.pem"
 "#;
 
 impl Config {
-    /// Load `confluencevoice.toml` from beside the running executable.
+    /// Load `confluence-voice.toml` from beside the running executable.
     ///
     /// If the file does not exist, a commented template is written in its place
     /// and this returns an error describing what to do next — the same "fail
@@ -185,7 +185,7 @@ impl Config {
                 .map_err(|e| format!("writing default {}: {e}", path.display()))?;
             return Err(format!(
                 "no configuration file existed, so one was created at:\n\n    {}\n\n\
-                 Open it, set at least public_ip, and run confluencevoice again.",
+                 Open it, set at least public_ip, and run confluence-voice again.",
                 path.display()
             ));
         }

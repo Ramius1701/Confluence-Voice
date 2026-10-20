@@ -1,4 +1,4 @@
-//! ConfluenceVoice — Windows-native spatial WebRTC voice for OpenSimulator.
+//! Confluence-Voice — Windows-native spatial WebRTC voice for OpenSimulator.
 //!
 //! Built from [wolfvoice](https://github.com/intelligentwolf/wolfvoice) by Wolf
 //! Software Systems Ltd — see NOTICE. The protocol handling, mixer and session
@@ -94,7 +94,7 @@ struct App {
 
 /// Env var the admin page's /restart sets on the child it spawns, so the new process
 /// can tell it was started that way — see App.started_via_admin_restart above.
-const RESTART_MARKER_ENV: &str = "CONFLUENCEVOICE_ADMIN_RESTART";
+const RESTART_MARKER_ENV: &str = "CONFLUENCE_VOICE_ADMIN_RESTART";
 
 impl App {
     fn endpoint(&self, id: &str) -> Option<Arc<Endpoint>> {
@@ -396,7 +396,7 @@ async fn handle(app: Arc<App>, req: Request<Body>) -> Result<Response<Body>, hyp
         // configuration shape (not secrets or the list contents themselves) here is no
         // worse than console access already implies.
         let body = json!({
-            "service": "confluencevoice",
+            "service": "confluence-voice",
             "version": env!("CARGO_PKG_VERSION"),
             "uptime_secs": app.started_at.elapsed().as_secs(),
             "sessions": app.sessions.session_count(),
@@ -653,7 +653,7 @@ async fn admin_handle(app: Arc<App>, req: Request<Body>) -> Result<Response<Body
                     if turn_on { "configured" } else { "not configured" }
                 );
                 admin_plain_response(
-                    "Reloaded confluencevoice.toml. Only the IP allow-list and TURN settings \
+                    "Reloaded confluence-voice.toml. Only the IP allow-list and TURN settings \
                      were applied live — everything else needs a restart to take effect.",
                 )
             }
@@ -825,7 +825,7 @@ fn admin_plain_response(msg: &str) -> Response<Body> {
         .header("content-type", "text/html; charset=utf-8")
         .body(Body::from(format!(
             r#"<!doctype html>
-<html><head><meta charset="utf-8"><title>ConfluenceVoice admin</title>{ADMIN_CSS}</head>
+<html><head><meta charset="utf-8"><title>Confluence-Voice admin</title>{ADMIN_CSS}</head>
 <body><div class="wrap"><section><p>{msg}</p><p><a href="/">&larr; Back to dashboard</a></p></section></div></body></html>"#,
         )))
         .unwrap()
@@ -908,12 +908,12 @@ fn admin_status_page(app: &App) -> Response<Body> {
 
     let html = format!(
         r#"<!doctype html>
-<html><head><meta charset="utf-8"><title>ConfluenceVoice admin</title>
+<html><head><meta charset="utf-8"><title>Confluence-Voice admin</title>
 <meta http-equiv="refresh" content="{refresh_secs}">
 {ADMIN_CSS}</head>
 <body><div class="wrap">
 <header>
-<div><h1>ConfluenceVoice</h1><p class="meta">v{version} &middot; auto-refreshes every {refresh_secs}s</p></div>
+<div><h1>Confluence-Voice</h1><p class="meta">v{version} &middot; auto-refreshes every {refresh_secs}s</p></div>
 <span class="badge {status_class}"><span class="dot"></span>{status_text}</span>
 </header>
 {restart_notice}
@@ -932,13 +932,13 @@ fn admin_status_page(app: &App) -> Response<Body> {
 <section><h2>Recent warnings / errors</h2>{log_tail}</section>
 
 <section><h2>Controls</h2><div class="controls">
-<form method="post" action="/reload" onsubmit="return confirm('Reload confluencevoice.toml now? Only the IP allow-list and TURN settings are applied live; everything else needs a restart.');">
+<form method="post" action="/reload" onsubmit="return confirm('Reload confluence-voice.toml now? Only the IP allow-list and TURN settings are applied live; everything else needs a restart.');">
 <button type="submit">Reload config</button>
 </form>
-<form method="post" action="/restart" onsubmit="return confirm('Restart ConfluenceVoice now? Everyone connected will need to fully relog to get voice back — confirmed 2026-09-27 that reconnecting on its own, and the usual voice on/off toggle, do NOT recover it. See docs/TESTING.md.');">
+<form method="post" action="/restart" onsubmit="return confirm('Restart Confluence-Voice now? Everyone connected will need to fully relog to get voice back — confirmed 2026-09-27 that reconnecting on its own, and the usual voice on/off toggle, do NOT recover it. See docs/TESTING.md.');">
 <button type="submit">Restart</button>
 </form>
-<form method="post" action="/stop" onsubmit="return confirm('Stop ConfluenceVoice now? Voice stays down until it is started again by hand — this page cannot start it back up.');">
+<form method="post" action="/stop" onsubmit="return confirm('Stop Confluence-Voice now? Voice stays down until it is started again by hand — this page cannot start it back up.');">
 <button type="submit" class="danger">Stop</button>
 </form>
 </div></section>
@@ -1068,7 +1068,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if cfg.allowed_region_ips.is_empty() {
         log::warn!(
             "allowed_region_ips is not set: the JSON-RPC port accepts connections from \
-             anywhere. Set it to your region hosts' addresses in confluencevoice.toml \
+             anywhere. Set it to your region hosts' addresses in confluence-voice.toml \
              once you know them — this port has no other authentication."
         );
     } else {
@@ -1099,13 +1099,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     match &cfg.bind_ip {
         Some(bind) => log::info!(
-            "confluencevoice listening on {addr} (TLS), media {}-{}/udp bound on {bind}, advertised as {}",
+            "confluence-voice listening on {addr} (TLS), media {}-{}/udp bound on {bind}, advertised as {}",
             cfg.media_port_lo,
             cfg.media_port_hi,
             cfg.public_ip
         ),
         None => log::info!(
-            "confluencevoice listening on {addr} (TLS), media {}-{}/udp on {}",
+            "confluence-voice listening on {addr} (TLS), media {}-{}/udp on {}",
             cfg.media_port_lo,
             cfg.media_port_hi,
             cfg.public_ip

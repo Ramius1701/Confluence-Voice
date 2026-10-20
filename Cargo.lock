@@ -445,7 +445,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "confluencevoice"
+name = "confluence-voice"
 version = "0.1.1"
 dependencies = [
  "anyhow",

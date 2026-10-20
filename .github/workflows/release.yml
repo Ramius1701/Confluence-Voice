@@ -44,12 +44,12 @@ jobs:
         shell: pwsh
         run: |
           $ver = (Select-String -Path Cargo.toml -Pattern '^version = "(.+)"').Matches[0].Groups[1].Value
-          $name = "ConfluenceVoice-$ver-windows-x64"
+          $name = "Confluence-Voice-$ver-windows-x64"
           $dir = "dist/$name"
           New-Item -ItemType Directory -Force "$dir/contrib", "$dir/docs" | Out-Null
-          Copy-Item target/release/confluencevoice.exe $dir
+          Copy-Item target/release/confluence-voice.exe $dir
           Copy-Item README.md, LICENSE, NOTICE $dir
-          Copy-Item contrib/confluencevoice.ini "$dir/contrib"
+          Copy-Item contrib/confluence-voice.ini "$dir/contrib"
           Copy-Item docs/*.md "$dir/docs"
           Compress-Archive -Path $dir -DestinationPath "dist/$name.zip" -Force
           $hash = (Get-FileHash "dist/$name.zip" -Algorithm SHA256).Hash.ToLower()

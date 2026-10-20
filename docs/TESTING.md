@@ -3,14 +3,14 @@
 ## What has been verified
 
 Tested 2026-09-27 on Windows 11 with Firestorm 7.2.5, one live OpenSim region
-(OpenSim-Confluence build, `os-webrtc-janus` addon), ConfluenceVoice running as a
+(OpenSim-Confluence build, `os-webrtc-janus` addon), Confluence-Voice running as a
 console app on the same machine.
 
 | Check | Result |
 |---|---|
 | `cargo build --release`, `cargo test` (31 tests) | pass |
 | `two_clients` end-to-end harness (real SDP, Opus, per-listener mixing) | pass |
-| Region provisions a viewer through ConfluenceVoice | pass |
+| Region provisions a viewer through Confluence-Voice | pass |
 | Firestorm peer connection reaches **connected**, `SLData` data channel **open** | pass |
 | Own speaking indicator (voice dot) shows | pass, with one participant |
 | Two or more real participants: hearing each other, panning, other people's dots, mute/volume | **not yet tested** — this is the one open item everything else is built on |
@@ -19,7 +19,7 @@ console app on the same machine.
 
 ## Vivox replacement checklist
 
-ConfluenceVoice is meant to replace Vivox, so a release should only claim what is ticked
+Confluence-Voice is meant to replace Vivox, so a release should only claim what is ticked
 here. Tick an item only after it has been seen working with real viewers, and note the
 date and viewer version beside it.
 
@@ -27,7 +27,7 @@ date and viewer version beside it.
 - [x] Region provisions a viewer and the peer connection connects (2026-09-27, Firestorm 7.2.5)
 - [x] `SLData` data channel opens (2026-09-27, Firestorm 7.2.5)
 - [ ] Reconnects after a viewer relog, and after the region restarts
-- [ ] **Reconnects on its own after a ConfluenceVoice restart, with no viewer action** — **confirmed false, 2026-09-27, Firestorm 7.2.5.** wolfvoice's own `docs/SERVER.md` claims "viewers re-provision automatically within a few seconds"; that does not hold here. Properly tested this time: one participant connected and idle, restarted via the admin page's `/restart`, touched nothing. `sessions` stayed `0` on the server for 15+ minutes; the viewer's mic button went permanently greyed out with the voice dot still shown (stale). Confirmed grid-wide 2026-09-27, after all 15 regions were migrated off Vivox: the "restart also kills Vivox" cascade is gone now that nothing on the grid runs Vivox, but the underlying no-auto-reconnect behavior is unchanged.
+- [ ] **Reconnects on its own after a Confluence-Voice restart, with no viewer action** — **confirmed false, 2026-09-27, Firestorm 7.2.5.** wolfvoice's own `docs/SERVER.md` claims "viewers re-provision automatically within a few seconds"; that does not hold here. Properly tested this time: one participant connected and idle, restarted via the admin page's `/restart`, touched nothing. `sessions` stayed `0` on the server for 15+ minutes; the viewer's mic button went permanently greyed out with the voice dot still shown (stale). Confirmed grid-wide 2026-09-27, after all 15 regions were migrated off Vivox: the "restart also kills Vivox" cascade is gone now that nothing on the grid runs Vivox, but the underlying no-auto-reconnect behavior is unchanged.
   - **Lighter recovery confirmed, 2026-09-28: teleporting away and back re-establishes voice, no relog needed.** After a live restart, teleported Sandbox → Welcome_Center → Sandbox; the return teleport produced a real new session server-side (ICE connected, data channel open, fully joined) — this is a genuinely working, much cheaper alternative to a full relog. (A second, immediate teleport a few seconds later interrupted that session mid-reconnect and looked briefly like a server-side race condition — it wasn't; the client log showed a real second `startTeleportRequest` at that exact moment, i.e. self-inflicted by teleporting twice in quick succession, not a bug. Don't chase that as a race condition again without a client log confirming there was only one teleport.)
 - [ ] Session is removed when the viewer logs out (check `sessions` on `https://host:9443/`)
 - [x] Voice connects from a viewer **outside** your network (ongoing, both testers: New Zealand and Indiana, USA, over `casperia.ddns.net:8002` — see the note in "What has been verified" above)
@@ -163,13 +163,13 @@ confirms nor contradicts the session-wide `giveUp` finding above; they're answer
 questions, not disagreeing.
 
 Lasting fix, region side: **done on Casperia's Sandbox region** (not upstreamed to
-ConfluenceVoice or `os-webrtc-janus` generally) — the WebRTC module now hands Vivox-type
+Confluence-Voice or `os-webrtc-janus` generally) — the WebRTC module now hands Vivox-type
 requests to the Vivox module instead of failing them, so the viewer's Vivox client gets real
 credentials and never calls `giveUp`. Confirmed live: the region log shows a real Vivox admin
 connection established, not the rejection above. Stock viewers cannot be changed, so this had
 to be fixed region-side.
 
-### ConfluenceVoice restart cascades into a dead Vivox client too
+### Confluence-Voice restart cascades into a dead Vivox client too
 **Superseded 2026-09-27: moot now that all 15 regions are WebRTC-only.** This cascade
 needed a still-Vivox region for the dead client to matter on; with Vivox disabled
 grid-wide there is nothing left for it to break. Left below for the mechanism (it is
@@ -179,7 +179,7 @@ retired, not because it stopped working) and in case Vivox is ever reintroduced.
 Symptom, seen 2026-09-27 (Firestorm 7.2.5, one participant, admin page's `/restart`
 used deliberately while connected and idle, to test the checklist item above):
 
-1. Restarted ConfluenceVoice via the admin page. The new process came up clean
+1. Restarted Confluence-Voice via the admin page. The new process came up clean
    (confirmed via its own `/` status endpoint), but the viewer's session was gone:
    `sessions` stayed `0` server-side for 15+ minutes with nothing touched. In the
    viewer, the voice dot stayed (stale UI, never cleared — no leave notice was sent,
@@ -191,7 +191,7 @@ used deliberately while connected and idle, to test the checklist item above):
    OK). It did **not** restore the WebRTC session — still `sessions: 0` afterward —
    and it also kicked off a real Vivox connection attempt, which failed with
    Firestorm's standard "We are unable to connect to the voice server: www.osp.vivox.com"
-   dialog (real SIP/RTP ports listed, nothing ConfluenceVoice-related).
+   dialog (real SIP/RTP ports listed, nothing Confluence-Voice-related).
 3. A full relog while still standing in Sandbox got WebRTC working again
    (`sessions: 1` server-side, voice confirmed working) — but reproduced the SAME
    Vivox connection-failure dialog immediately on login, and this time it stuck:
@@ -215,7 +215,7 @@ Practical upshot: **starting a session anywhere that attempts a WebRTC voice
 connection can leave Vivox unusable for the rest of that login, grid-wide, if the
 real Vivox service is unreachable when Firestorm tries it.** If you need Vivox
 today, log in at a Vivox sim, not Sandbox. This is also the strongest argument yet
-for steering people at ConfluenceVoice rather than treating Vivox as a fallback —
+for steering people at Confluence-Voice rather than treating Vivox as a fallback —
 see the README's Alternatives section.
 
 ### Voice does not survive rapid region-border crossings
@@ -255,9 +255,9 @@ fix it — anyone who parks or builds near a region border will hit this.
 
 Not yet investigated: whether Firestorm's `llvoicewebrtc.cpp` could reuse the
 existing peer connection across a same-server crossing (all these regions share one
-ConfluenceVoice instance) instead of rebuilding from zero, which would be the real
+Confluence-Voice instance) instead of rebuilding from zero, which would be the real
 fix if the SIP-channel-switch hypothesis above is right. That is viewer-side code,
-not something fixable from ConfluenceVoice or the region module.
+not something fixable from Confluence-Voice or the region module.
 
 ### Voice never connects after teleporting through Vivox regions
 Symptom: the region log shows `voice_server_type is not 'webrtc'` for requests of type
@@ -274,12 +274,12 @@ few seconds. Harmless.
 
 ### "viewer session 0000… not found" on `VoiceSignalingRequest`
 The viewer sent an ICE candidate before it had the session id from the provision
-reply. Harmless: the connection completes using ConfluenceVoice's host candidate.
+reply. Harmless: the connection completes using Confluence-Voice's host candidate.
 
 ### Self-signed certificate
 OpenSim's outbound HTTPS defaults to `NoVerifyCertChain = true` and
 `NoVerifyCertHostname = true`, so the region's connector accepts a self-signed
-ConfluenceVoice certificate. Use a CA-issued certificate for anything reachable from the
+Confluence-Voice certificate. Use a CA-issued certificate for anything reachable from the
 internet.
 
 ### Firestorm: "unable to connect to the voice server: www.bhr.vivox.com" — not a bug
@@ -297,17 +297,17 @@ parcel, so two people on different parcels of the same region are in different r
 correct behaviour when a parcel has its own voice channel rather than using the estate-wide
 one. Whether a parcel does depends on its `PF_USE_ESTATE_VOICE_CHAN` flag (bit 30). If
 everyone should be sharing one channel and isn't, check that flag before suspecting a
-ConfluenceVoice or room-keying problem.
+Confluence-Voice or room-keying problem.
 
 ## Reading the logs
 
-- **ConfluenceVoice:** a working session logs `connection state Connected` and
+- **Confluence-Voice:** a working session logs `connection state Connected` and
   `data channel "SLData"`.
 - **Region:** with `MessageDetails = true` you see each `ProvisionVoice` request.
 - **Firestorm:** `Documents\..\Firestorm_x64\logs\Firestorm.log`; search for `#Voice#`.
   Healthy: `Peer Connection State Change connected` and `Data Channel State: open`.
 
 ## Public IP and NAT
-`public_ip` in `confluencevoice.toml` is the only address a viewer learns for media. On
+`public_ip` in `confluence-voice.toml` is the only address a viewer learns for media. On
 the same machine or LAN, use the machine's LAN address. For viewers outside your network,
 use the public address and forward UDP 40000-40999 to this machine.

@@ -1,5 +1,5 @@
 [package]
-name = "confluencevoice"
+name = "confluence-voice"
 version = "0.1.1"
 edition = "2021"
 rust-version = "1.75"
@@ -10,7 +10,7 @@ keywords = ["opensimulator", "webrtc", "voice", "opensim", "spatial-audio"]
 categories = ["multimedia::audio", "network-programming"]
 
 [[bin]]
-name = "confluencevoice"
+name = "confluence-voice"
 path = "src/main.rs"
 
 [dependencies]
