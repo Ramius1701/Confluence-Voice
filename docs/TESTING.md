@@ -36,7 +36,7 @@ date and viewer version beside it.
 ### Nearby (spatial) voice — needs two or more real participants
 - [x] Own speaking indicator shows (2026-09-27, one participant)
 - [ ] Each person hears the other
-- [ ] Other people's speaking dots appear above their avatars
+- [x] Other people's speaking dots appear above their avatars (2026-09-28, two real remote participants — New Zealand and Indiana, USA — at Welcome_Center. Jeffery's dot took noticeably longer to appear than the connection itself: both sessions showed connected/joined/data-channel-open server-side for 100+ seconds before his dot rendered for Ramius, consistent with Firestorm's own two-stage join (a first join, then a second "primary" one only once its voice session is fully up) rather than anything failing. Worth watching for again, not yet a filed bug.)
 - [ ] Panning: a speaker to your left is louder in the left ear, and it follows you turning
 - [ ] Distance: full volume within 10 m, fading out, silent beyond 60 m
 - [ ] Per-person volume slider and per-person mute affect only that listener
