@@ -161,13 +161,16 @@ at your Windows logon. Run this once in PowerShell, with your install folder:
 
 ```powershell
 $dir = "C:\Confluence-Voice"
-$action   = New-ScheduledTaskAction -Execute "cmd.exe" -Argument "/c confluence-voice.exe 2>> err.log" -WorkingDirectory $dir
+$action   = New-ScheduledTaskAction -Execute "conhost.exe" -Argument "--headless cmd.exe /c confluence-voice.exe 2>> err.log" -WorkingDirectory $dir
 $trigger  = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
 $settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) -MultipleInstances IgnoreNew
 Register-ScheduledTask -TaskName "Confluence-Voice" -Action $action -Trigger $trigger -Settings $settings
 Start-ScheduledTask -TaskName "Confluence-Voice"
 ```
 
+- `conhost.exe --headless` runs it with no window. With a visible console window,
+  closing that window stops the server (the log ends in `^C`), and voice goes down
+  without anyone noticing.
 - The log goes to `err.log` in the install folder. `cmd.exe` does the redirect because
   Windows PowerShell 5's `2>>` writes UTF-16, which turns the log unreadable.
 - `ExecutionTimeLimit` zero removes Task Scheduler's default three-day limit, which would
