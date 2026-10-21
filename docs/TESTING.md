@@ -259,6 +259,38 @@ Confluence-Voice instance) instead of rebuilding from zero, which would be the r
 fix if the SIP-channel-switch hypothesis above is right. That is viewer-side code,
 not something fixable from Confluence-Voice or the region module.
 
+**What the server side already shows (2026-10-22).** Since `c567858`, Confluence-Voice logs
+`ICE gathering took …` and `establish() took … total` for every session. In live sessions on
+2026-10-01 both stayed between 25 and 47 ms, against a 2.5 s gathering timeout. So the
+4-15 seconds per reconnect are not spent on this server. It is unconfirmed that those
+sessions came from border crossings.
+
+**How to run the test.** The test needs one deliberate run with all three logs captured over
+the same minutes. Two people help: the 4-15 seconds is only meaningful if someone is
+talking.
+
+1. Note the time (UTC), log in with Firestorm, and stand well inside Sector_001 with voice
+   working. Have a second avatar talk nearby.
+2. Walk to the corner where Sector_001-004 meet and stand still for two minutes. Note when
+   voice drops and comes back, as best you can.
+3. Walk well away from the corner, wait 30 seconds, note the time, and log out.
+4. Do not log in again before the logs are collected: Firestorm overwrites its log at the
+   next start (the previous one becomes `Firestorm.old`).
+
+Logs to collect:
+
+| Side | File |
+|---|---|
+| Confluence-Voice | `S:\Opensim\Confluence-Voice\err.log` (session ids, `establish()` timings, joins and closes) |
+| Regions | `S:\Opensim\Casperia\Simulators\Sector_00N\bin\OpenSim.log` for N = 1 to 4 (provisions, "stall session" cleanups) |
+| Viewer | `%APPDATA%\Firestorm_x64\logs\Firestorm.log` (`process_crossed_region`, `breakVoiceConnectionCoro`, data channel state) |
+
+Matching the three by time answers it: for each crossing, how long Firestorm takes before it
+sends a new provision, how long the server takes to answer (expected: well under 100 ms), and
+how long the viewer then takes to reach `connected`. If the time sits on the viewer side,
+the fix is in the viewer (reusing the peer connection across a same-server crossing), and it
+goes to the Confluence-Viewer project.
+
 ### Voice never connects after teleporting through Vivox regions
 Symptom: the region log shows `voice_server_type is not 'webrtc'` for requests of type
 `vivox`. Firestorm switches to its Vivox client when it enters a region that
