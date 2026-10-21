@@ -153,6 +153,31 @@ curl.exe -k https://voice.example.org:9443/
 # {"rooms":0,"service":"confluence-voice","sessions":0}
 ```
 
+### 6. Start it automatically (optional)
+
+Confluence-Voice is a console program, not a Windows Service. Started from a terminal or
+another program, it stops when that closes. A Task Scheduler task starts it on its own,
+at your Windows logon. Run this once in PowerShell, with your install folder:
+
+```powershell
+$dir = "C:\Confluence-Voice"
+$action   = New-ScheduledTaskAction -Execute "cmd.exe" -Argument "/c confluence-voice.exe 2>> err.log" -WorkingDirectory $dir
+$trigger  = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
+$settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) -MultipleInstances IgnoreNew
+Register-ScheduledTask -TaskName "Confluence-Voice" -Action $action -Trigger $trigger -Settings $settings
+Start-ScheduledTask -TaskName "Confluence-Voice"
+```
+
+- The log goes to `err.log` in the install folder. `cmd.exe` does the redirect because
+  Windows PowerShell 5's `2>>` writes UTF-16, which turns the log unreadable.
+- `ExecutionTimeLimit` zero removes Task Scheduler's default three-day limit, which would
+  otherwise stop voice after 72 hours.
+- It starts at **logon**, not at boot. On a machine that reboots unattended, set Windows
+  to sign in automatically, or change the trigger to `-AtStartup` and run the task as a
+  service account.
+- Stop and start it with the admin page, or with `Stop-ScheduledTask` /
+  `Start-ScheduledTask -TaskName "Confluence-Voice"`.
+
 ## Building from source
 
 Needs a Rust toolchain and `cmake` (the `opus` crate compiles libopus from source).
@@ -188,9 +213,9 @@ sufficient for those. Details, problems found and fixes:
 
 Next, in order:
 
-1. **Multi-person testing.** Two or more real participants for spatial voice (hearing
-   each other, panning, distance, other people's speaking dots), then group voice and
-   person-to-person calls. Progress is tracked in the checklist in
+1. **Multi-person testing.** Spatial voice with two or more real participants (hearing
+   each other, panning, distance, other people's speaking dots, per-person volume and
+   mute) is confirmed. Still to test: group voice and person-to-person calls. Progress is tracked in the checklist in
    [docs/TESTING.md](docs/TESTING.md); a release should only claim what is ticked there.
 2. **A shared secret for the voice port.** TCP 9443 now supports an IP allow-list
    (`allowed_region_ips` in `confluence-voice.toml`, checked before the TLS handshake) —
@@ -220,8 +245,8 @@ After that:
    unexpected-restart flag (uptime reset without the admin page's own Restart button
    having caused it), and Stop/Restart/Reload-config controls. Still open: a TLS
    certificate expiry warning on the dashboard (so a lapsed cert doesn't silently take
-   voice down), log to a file with rotation, certificate reload without a restart, and a
-   documented Task Scheduler or NSSM recipe for starting on boot.
+   voice down), log to a file with rotation, certificate reload without a restart. Starting it with
+   Task Scheduler is documented in Quick start, step 6.
 6. **Distribution and trust.** Done: automated Windows builds and tests on every push
    ([ci.yml](.github/workflows/ci.yml)), and a release workflow
    ([release.yml](.github/workflows/release.yml)) that builds, packages and publishes a
@@ -292,7 +317,7 @@ that works and a full relog is needed instead (confirmed live, 2026-09-27). This
 Firestorm behaviour, not something Confluence-Voice can fix on its own. A region-side fix
 exists — the WebRTC module hands Vivox-type requests to the Vivox module instead of
 rejecting them, so the viewer's Vivox client gets real credentials and never gives up —
-committed to [OpenSim-Confluence](https://github.com/Ramius1701/OpenSim-Confluence)
+committed to [Confluence-OpenSim](https://github.com/Ramius1701/Confluence-OpenSim)
 (not upstream `os-webrtc-janus` itself yet). The real fix, though, is not running a mixed
 grid at all: a grid running WebRTC only, like Casperia now does on all 15 regions, never
 hits this. Details in [docs/TESTING.md](docs/TESTING.md).

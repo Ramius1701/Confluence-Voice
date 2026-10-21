@@ -13,7 +13,7 @@ console app on the same machine.
 | Region provisions a viewer through Confluence-Voice | pass |
 | Firestorm peer connection reaches **connected**, `SLData` data channel **open** | pass |
 | Own speaking indicator (voice dot) shows | pass, with one participant |
-| Two or more real participants: hearing each other, panning, other people's dots, mute/volume | **not yet tested** — this is the one open item everything else is built on |
+| Two or more real participants: hearing each other, panning, distance, other people's dots, mute/volume | pass — confirmed by the owner (reported 2026-10-22). Group and person-to-person calls are still untested. |
 | Remote/NAT'd viewers over the real internet | confirmed, ongoing: the two testers connect from New Zealand and Indiana, USA respectively, to `casperia.ddns.net:8002` — real cross-continent WAN traffic, not LAN. The router UDP port range had to be narrowed (40000-40999 to 40000-40049) to match what the router would actually forward; that fix came from this real remote traffic, not a lab test. |
 | Running as a Windows Service | not implemented (on hold) |
 
@@ -35,11 +35,11 @@ date and viewer version beside it.
 
 ### Nearby (spatial) voice — needs two or more real participants
 - [x] Own speaking indicator shows (2026-09-27, one participant)
-- [ ] Each person hears the other
+- [x] Each person hears the other (confirmed by the owner, reported 2026-10-22; test date and viewer version not recorded)
 - [x] Other people's speaking dots appear above their avatars (2026-09-28, two real remote participants — New Zealand and Indiana, USA — at Welcome_Center. Jeffery's dot took noticeably longer to appear than the connection itself: both sessions showed connected/joined/data-channel-open server-side for 100+ seconds before his dot rendered for Ramius, consistent with Firestorm's own two-stage join (a first join, then a second "primary" one only once its voice session is fully up) rather than anything failing. Worth watching for again, not yet a filed bug.)
-- [ ] Panning: a speaker to your left is louder in the left ear, and it follows you turning
-- [ ] Distance: full volume within 10 m, fading out, silent beyond 60 m
-- [ ] Per-person volume slider and per-person mute affect only that listener
+- [x] Panning: a speaker to your left is louder in the left ear, and it follows you turning (confirmed by the owner, reported 2026-10-22; test date and viewer version not recorded)
+- [x] Distance: full volume within 10 m, fading out, silent beyond 60 m (confirmed by the owner, reported 2026-10-22; test date and viewer version not recorded)
+- [x] Per-person volume slider and per-person mute affect only that listener (confirmed by the owner, reported 2026-10-22; test date and viewer version not recorded)
 - [ ] Crossing into a neighbouring region keeps voice, without a gap or a duplicate participant — **a single clean crossing is untested; repeated/rapid crossing is confirmed broken, see "Voice does not survive rapid region-border crossings" below.**
 - [x] Teleporting within the region keeps the same voice session (2026-09-27, Firestorm 7.2.5, one participant)
 - [ ] Teleporting to another region and back reconnects cleanly
