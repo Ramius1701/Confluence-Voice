@@ -178,8 +178,9 @@ Start-ScheduledTask -TaskName "Confluence-Voice"
 - It starts at **logon**, not at boot. On a machine that reboots unattended, set Windows
   to sign in automatically, or change the trigger to `-AtStartup` and run the task as a
   service account.
-- Stop and start it with the admin page, or with `Stop-ScheduledTask` /
-  `Start-ScheduledTask -TaskName "Confluence-Voice"`.
+- Start it with `Start-ScheduledTask -TaskName "Confluence-Voice"`. Stop it with the
+  admin page's Stop button. `Stop-ScheduledTask` is **not** enough: it ends only the
+  hidden `conhost` wrapper, and Confluence-Voice keeps running.
 
 ## Building from source
 
