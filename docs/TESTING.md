@@ -305,8 +305,22 @@ While a Vivox client is still active, the region logs one rejected `vivox` reque
 few seconds. Harmless.
 
 ### "viewer session 0000… not found" on `VoiceSignalingRequest`
-The viewer sent an ICE candidate before it had the session id from the provision
-reply. Harmless: the connection completes using Confluence-Voice's host candidate.
+**Fixed 2026-11-12. This was a bug, not harmless, as this page used to say.**
+Confluence-Voice's session ids were `cv-<uuid>`. The viewer stores the session id as a
+UUID (`llvoicewebrtc.h:697`), so `cv-<uuid>` became `00000000-…`, and every trickled ICE
+candidate and every logout after the first answer named that null session. The region
+could not find it, so:
+
+- **The viewer's ICE candidates never reached Confluence-Voice.** A connection only
+  completed when the server reached the viewer through its own host candidate, which
+  fails for some NATs.
+- **Logouts closed nothing.** Sessions stayed until the region's stall cleanup or the
+  server's disconnect timeout. This may be part of the region-border problem below, and
+  of "Session is removed when the viewer logs out" never being ticked.
+
+wolfvoice found and fixed the same bug (`2fab8f7`; about half of its sessions failed or
+reconnected every 30-60 s). Session ids are now bare UUIDs. If this line appears again,
+check that the server answering is 0.1.3 or later.
 
 ### Self-signed certificate
 OpenSim's outbound HTTPS defaults to `NoVerifyCertChain = true` and

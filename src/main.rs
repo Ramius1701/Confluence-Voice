@@ -202,7 +202,7 @@ impl App {
             },
         };
 
-        let id = format!("cv-{}", uuid::Uuid::new_v4());
+        let id = new_session_id();
         let sess = Arc::new(Session::new(
             id.clone(),
             params.user_id.clone(),
@@ -726,10 +726,23 @@ fn html_escape(s: &str) -> String {
     s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")
 }
 
-/// First 8 characters of the UUID half of a session id, for a compact admin-page
-/// column — the full id is still what /kick's query string carries.
+/// A new viewer session id: a bare UUID, nothing around it.
+///
+/// The viewer keeps viewer_session as an LLUUID (llvoicewebrtc.h:697 mViewerSession,
+/// set at llvoicewebrtc.cpp:2876). Anything that does not parse as a UUID, such as
+/// the "cv-<uuid>" this used to be, becomes the null UUID, so every later
+/// VoiceSignalingRequest (the viewer's trickled ICE candidates) and logout named
+/// session 00000000-…. The region could not find that session, the candidates never
+/// reached this server, and logouts never closed anything. Found by wolfvoice
+/// (2fab8f7), where about half of all sessions failed or kept reconnecting.
+fn new_session_id() -> String {
+    uuid::Uuid::new_v4().to_string()
+}
+
+/// First 8 characters of a session id, for a compact admin-page column — the full
+/// id is still what /kick's query string carries.
 fn short_id(id: &str) -> &str {
-    id.strip_prefix("cv-").and_then(|s| s.get(..8)).unwrap_or(id)
+    id.get(..8).unwrap_or(id)
 }
 
 /// Renders the live session list for the admin page, grouped by room (one table per
@@ -1147,5 +1160,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 log::debug!("connection from {peer}: {e}");
             }
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn session_ids_are_bare_uuids_a_viewer_can_hold() {
+        // The viewer parses viewer_session into an LLUUID; anything else becomes the
+        // null UUID and breaks trickled ICE and logout (see new_session_id).
+        for _ in 0..100 {
+            let id = new_session_id();
+            let parsed = uuid::Uuid::parse_str(&id).expect("session id must parse as a UUID");
+            assert!(!parsed.is_nil());
+            assert_eq!(parsed.to_string(), id, "hyphenated lowercase, nothing around it");
+        }
+    }
+
+    #[test]
+    fn short_id_is_the_first_eight_characters() {
+        assert_eq!(short_id("06cc72d9-217d-400e-9934-045655a7c259"), "06cc72d9");
+        assert_eq!(short_id("abc"), "abc");
     }
 }
