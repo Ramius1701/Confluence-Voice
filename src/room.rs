@@ -656,19 +656,33 @@ mod tests {
         // itself. A count comparison (pool grew by exactly one) is NOT safe here: other
         // tests' own ListenerOutputs are being dropped into this same shared pool at the
         // same time. Checking that our specific buffer is present afterwards is robust
-        // to that unrelated traffic — the only way to defeat it is another thread
-        // popping this exact buffer back out in the same instant, which is negligible
-        // for synchronous, no-yield-point operations like these.
+        // to that unrelated traffic, apart from another thread borrowing this exact
+        // buffer in the meantime, handled below.
         let a = session("a", "agent-a", [0.0, 0.0, 0.0]);
         loud(&a);
         let mut out = mix_room(std::slice::from_ref(&a));
         let ptr = out[0].stereo.as_ptr();
         drop(out.pop().unwrap());
 
-        let mut pool = STEREO_POOL.lock();
-        let pos = pool.iter().position(|b| b.as_ptr() == ptr);
-        assert!(pos.is_some(), "ListenerOutput's Drop impl must return its buffer to STEREO_POOL");
-        pool.swap_remove(pos.unwrap()); // leave the shared pool as we found it
+        // Another test's mix can borrow our buffer from the pool in the meantime; its
+        // own ListenerOutput gives it back when dropped. So look for it for up to two
+        // seconds instead of once (a single look failed now and then under parallel
+        // tests, more often once a 32-mix room test was added).
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+        loop {
+            {
+                let mut pool = STEREO_POOL.lock();
+                if let Some(pos) = pool.iter().position(|b| b.as_ptr() == ptr) {
+                    pool.swap_remove(pos); // leave the shared pool as we found it
+                    return;
+                }
+            }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "ListenerOutput's Drop impl must return its buffer to STEREO_POOL"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(1));
+        }
     }
 
     #[test]
@@ -711,7 +725,7 @@ mod tests {
         // The whole point of per-listener mixing: A hears B on one side while B
         // hears A on the other. A shared room mix cannot express this.
         let a = session("a", "agent-a", [0.0, 0.0, 0.0]);
-        let b = session("b", "agent-b", [5.0, 0.0, 0.0]);
+        let b = session("b", "agent-b", [0.0, -5.0, 0.0]);
         loud(&a);
         loud(&b);
         let out = mix_room(&[a.clone(), b.clone()]);
@@ -719,15 +733,51 @@ mod tests {
         let for_a = out.iter().find(|o| o.session.id == "a").unwrap();
         let for_b = out.iter().find(|o| o.session.id == "b").unwrap();
 
-        // B is east of A, so A hears B louder on the right.
+        // Both face local +X (east). B is south of A, on A's right.
         let a_left: f32 = for_a.stereo.iter().step_by(2).map(|s| s.abs()).sum();
         let a_right: f32 = for_a.stereo.iter().skip(1).step_by(2).map(|s| s.abs()).sum();
         assert!(a_right > a_left, "A should hear B to the right");
 
-        // A is west of B, so B hears A louder on the left.
+        // A is north of B, on B's left.
         let b_left: f32 = for_b.stereo.iter().step_by(2).map(|s| s.abs()).sum();
         let b_right: f32 = for_b.stereo.iter().skip(1).step_by(2).map(|s| s.abs()).sum();
         assert!(b_left > b_right, "B should hear A to the left");
+    }
+
+    #[test]
+    fn following_a_speaker_keeps_their_voice_centred_and_steady() {
+        // Walk behind a speaker 3 m ahead, both moving together, the speaker's
+        // own heading wandering. Their voice must stay centred at a steady level.
+        let listener = session("listener", "agent-listener", [0.0; 3]);
+        let speaker = session("speaker", "agent-speaker", [3.0, 0.0, 0.0]);
+        let mut previous_power: Option<f32> = None;
+        for step in 0..32 {
+            let x = 256000.0 + step as f64;
+            let z = ((step as f64) * 0.1).sin();
+            listener.apply_data(&proto::ViewerDataMessage {
+                avatar_pos: Some([x, 768000.0, 25.0]),
+                listener_pos: Some([x, 768000.0, 25.0]),
+                listener_rot: Some([0.0, 0.0, 0.0, 1.0]),
+                ..Default::default()
+            });
+            speaker.apply_data(&proto::ViewerDataMessage {
+                avatar_pos: Some([x + 3.0, 768000.0, 25.0]),
+                avatar_rot: Some([0.0, 0.0, z, (1.0 - z * z).sqrt()]),
+                ..Default::default()
+            });
+            loud(&speaker);
+            let outputs = mix_room(&[listener.clone(), speaker.clone()]);
+            let output = outputs.iter().find(|o| o.session.id == "listener").unwrap();
+            let left: f32 = output.stereo.iter().step_by(2).map(|s| s * s).sum();
+            let right: f32 = output.stereo.iter().skip(1).step_by(2).map(|s| s * s).sum();
+            assert!(left > 0.0 && right > 0.0, "a voice in front reaches both ears (step {step})");
+            assert!((left - right).abs() < 1e-4, "a voice in front stays centred (step {step})");
+            let power = left + right;
+            if let Some(previous) = previous_power {
+                assert!((previous - power).abs() < 1e-4, "moving together must not change the level");
+            }
+            previous_power = Some(power);
+        }
     }
 
     #[test]

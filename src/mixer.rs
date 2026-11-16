@@ -89,6 +89,18 @@ pub fn tether(listener: [f64; 3], avatar: [f64; 3]) -> [f64; 3] {
 /// The quaternion arrives as (x, y, z, w) — llvoicewebrtc.cpp:1231-1236 writes
 /// mListenerRot[0..3] in that order, and LLQuaternion stores x,y,z,w.
 fn world_to_local(v: [f64; 3], q: [f64; 4]) -> [f64; 3] {
+    // The viewer sends each component truncated to hundredths, so restore unit
+    // length before the rotation formula below (which assumes it). Scale by the
+    // largest component first so large finite values cannot overflow; a zero or
+    // non-finite quaternion falls back to identity.
+    let scale = q.iter().fold(0.0_f64, |m, x| m.max(x.abs()));
+    let q = if q.iter().all(|x| x.is_finite()) && scale > 0.0 {
+        let scaled = q.map(|x| x / scale);
+        let norm = scaled.iter().map(|x| x * x).sum::<f64>().sqrt();
+        scaled.map(|x| x / norm)
+    } else {
+        [0.0, 0.0, 0.0, 1.0]
+    };
     // Conjugate: negate the vector part.
     let (qx, qy, qz, qw) = (-q[0], -q[1], -q[2], q[3]);
     // Standard quaternion-vector rotation: v' = q * v * q^-1, expanded.
@@ -105,9 +117,12 @@ fn world_to_local(v: [f64; 3], q: [f64; 4]) -> [f64; 3] {
 /// Constant-power stereo pan weights (left, right) for a speaker heard by a
 /// listener at the given orientation.
 ///
-/// SL/OpenSim is Z-up with X east and Y north; the listener's local +X is "right"
-/// after rotating into its frame, so the lateral component drives the pan. We use
-/// the constant-power (sin/cos) law so a source moving across the front does not
+/// World axes are X east, Y north, Z up. After rotating into the listener's frame
+/// the axes are the viewer's LLCoordFrame ones: +X forward (getAtAxis), +Y left
+/// (getLeftAxis), +Z up. So local -Y is right. The direction is measured in 3D, so
+/// a source nearly overhead stays near the centre. (Until 0.1.4 this used local +X
+/// as right: a speaker in front sounded hard right and one beside you centred.
+/// Ported from wolfvoice PR #3 by Vlad-BloodMoon.) We use the constant-power (sin/cos) law so a source moving across the front does not
 /// change apparent loudness.
 pub fn pan_weights(speaker_world: [f64; 3], listener_pos: [f64; 3], listener_rot: [f64; 4]) -> (f32, f32) {
     let rel = [
@@ -116,9 +131,9 @@ pub fn pan_weights(speaker_world: [f64; 3], listener_pos: [f64; 3], listener_rot
         speaker_world[2] - listener_pos[2],
     ];
     let local = world_to_local(rel, listener_rot);
-    let horiz = (local[0] * local[0] + local[1] * local[1]).sqrt();
+    let distance = local[0].hypot(local[1]).hypot(local[2]);
     // Directly on top of the listener: centre it rather than dividing by zero.
-    let lateral = if horiz < 1e-6 { 0.0 } else { local[0] / horiz };
+    let lateral = if distance < 1e-6 { 0.0 } else { -local[1] / distance };
     // lateral is -1 (hard left) .. +1 (hard right); map to 0..PI/2.
     let angle = (lateral.clamp(-1.0, 1.0) + 1.0) * (std::f64::consts::FRAC_PI_4);
     (angle.cos() as f32, angle.sin() as f32)
@@ -200,14 +215,54 @@ mod tests {
     }
 
     #[test]
-    fn pan_puts_east_speaker_on_the_right_of_a_north_facing_listener() {
-        // Identity rotation: listener's local frame == world frame, local +X = right.
+    fn pan_uses_the_viewer_left_axis() {
+        // Identity rotation: +X forward, +Y left, -Y right.
         let ident = [0.0, 0.0, 0.0, 1.0];
-        let (l, r) = pan_weights([10.0, 0.0, 0.0], [0.0, 0.0, 0.0], ident);
-        assert!(r > l, "east should be louder on the right, got l={l} r={r}");
+        let (l, r) = pan_weights([0.0, -10.0, 0.0], [0.0, 0.0, 0.0], ident);
+        assert!(r > 0.99 && l < 1e-5, "local -Y should be hard right, got l={l} r={r}");
 
-        let (l, r) = pan_weights([-10.0, 0.0, 0.0], [0.0, 0.0, 0.0], ident);
-        assert!(l > r, "west should be louder on the left, got l={l} r={r}");
+        let (l, r) = pan_weights([0.0, 10.0, 0.0], [0.0, 0.0, 0.0], ident);
+        assert!(l > 0.99 && r < 1e-5, "local +Y should be hard left, got l={l} r={r}");
+    }
+
+    fn assert_centred(pos: [f64; 3], q: [f64; 4]) {
+        let (l, r) = pan_weights(pos, [0.0; 3], q);
+        assert!((l - r).abs() < 1e-5, "expected centred for {pos:?} {q:?}: l={l} r={r}");
+    }
+
+    #[test]
+    fn behind_is_centred() {
+        assert_centred([-3.0, 0.0, 0.0], [0.0, 0.0, 0.0, 1.0]);
+    }
+
+    #[test]
+    fn straight_ahead_stays_centred_through_a_full_turn_with_wire_rounding() {
+        for degrees in 0..360 {
+            let yaw = (degrees as f64).to_radians();
+            let q = [0.0, 0.0, (yaw / 2.0).sin(), (yaw / 2.0).cos()];
+            // As the viewer sends it: each component truncated to hundredths.
+            let wire = q.map(|x| (x * 100.0).trunc() / 100.0);
+            // Place the speaker along the forward axis of the rotation the
+            // truncated quaternion actually represents.
+            let n = (wire[2] * wire[2] + wire[3] * wire[3]).sqrt();
+            let (z, w) = (wire[2] / n, wire[3] / n);
+            assert_centred([3.0 * (1.0 - 2.0 * z * z), 3.0 * (2.0 * w * z), 0.0], wire);
+        }
+    }
+
+    #[test]
+    fn nearly_overhead_is_not_hard_panned() {
+        let (l, r) = pan_weights([0.0, 0.01, 10.0], [0.0; 3], [0.0, 0.0, 0.0, 1.0]);
+        assert!((l - r).abs() < 0.002, "nearly overhead: l={l} r={r}");
+    }
+
+    #[test]
+    fn bad_orientations_fall_back_without_nan_or_overflow() {
+        for q in [[0.0; 4], [f64::NAN, 0.0, 0.0, 1.0], [0.0, 0.0, 0.0, f64::INFINITY]] {
+            assert_centred([3.0, 0.0, 0.0], q);
+        }
+        // Huge but finite: normalised, so a 90-degree yaw puts +Y straight ahead.
+        assert_centred([0.0, 3.0, 0.0], [0.0, 0.0, 1e300, 1e300]);
     }
 
     #[test]
@@ -223,7 +278,7 @@ mod tests {
     #[test]
     fn straight_ahead_is_centred() {
         let ident = [0.0, 0.0, 0.0, 1.0];
-        let (l, r) = pan_weights([0.0, 10.0, 0.0], [0.0, 0.0, 0.0], ident);
+        let (l, r) = pan_weights([10.0, 0.0, 0.0], [0.0, 0.0, 0.0], ident);
         assert!((l - r).abs() < 1e-5, "front should be centred, got l={l} r={r}");
     }
 

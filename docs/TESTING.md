@@ -13,7 +13,7 @@ console app on the same machine.
 | Region provisions a viewer through Confluence-Voice | pass |
 | Firestorm peer connection reaches **connected**, `SLData` data channel **open** | pass |
 | Own speaking indicator (voice dot) shows | pass, with one participant |
-| Two or more real participants: hearing each other, panning, distance, other people's dots, mute/volume | pass — confirmed by the owner (reported 2026-10-22). Group and person-to-person calls are still untested. |
+| Two or more real participants: hearing each other, panning, distance, other people's dots, mute/volume | pass — confirmed by the owner (reported 2026-10-22), except panning, which was wrong in code until 0.1.4 and needs re-testing. Group and person-to-person calls are still untested. |
 | Remote/NAT'd viewers over the real internet | confirmed, ongoing: the two testers connect from New Zealand and Indiana, USA respectively, to `casperia.ddns.net:8002` — real cross-continent WAN traffic, not LAN. The router UDP port range had to be narrowed (40000-40999 to 40000-40049) to match what the router would actually forward; that fix came from this real remote traffic, not a lab test. |
 | Running as a Windows Service | not implemented (on hold) |
 
@@ -37,7 +37,7 @@ date and viewer version beside it.
 - [x] Own speaking indicator shows (2026-09-27, one participant)
 - [x] Each person hears the other (confirmed by the owner, reported 2026-10-22; test date and viewer version not recorded)
 - [x] Other people's speaking dots appear above their avatars (2026-09-28, two real remote participants — New Zealand and Indiana, USA — at Welcome_Center. Jeffery's dot took noticeably longer to appear than the connection itself: both sessions showed connected/joined/data-channel-open server-side for 100+ seconds before his dot rendered for Ramius, consistent with Firestorm's own two-stage join (a first join, then a second "primary" one only once its voice session is fully up) rather than anything failing. Worth watching for again, not yet a filed bug.)
-- [x] Panning: a speaker to your left is louder in the left ear, and it follows you turning (confirmed by the owner, reported 2026-10-22; test date and viewer version not recorded)
+- [ ] Panning: a speaker in front is centred, one to your left is louder in the left ear, and it follows you turning. **Re-test on 0.1.4:** the owner reported a pass on 2026-10-22, but until 0.1.4 the code panned a speaker in front hard right and one beside you centred. See "Left and right were wrong" below.
 - [x] Distance: full volume within 10 m, fading out, silent beyond 60 m (confirmed by the owner, reported 2026-10-22; test date and viewer version not recorded)
 - [x] Per-person volume slider and per-person mute affect only that listener (confirmed by the owner, reported 2026-10-22; test date and viewer version not recorded)
 - [ ] Crossing into a neighbouring region keeps voice, without a gap or a duplicate participant — **a single clean crossing is untested; repeated/rapid crossing is confirmed broken, see "Voice does not survive rapid region-border crossings" below.**
@@ -321,6 +321,29 @@ could not find it, so:
 wolfvoice found and fixed the same bug (`2fab8f7`; about half of its sessions failed or
 reconnected every 30-60 s). Session ids are now bare UUIDs. If this line appears again,
 check that the server answering is 0.1.3 or later.
+
+### Left and right were wrong: a voice in front came from the right
+**Fixed 2026-11-16, in 0.1.4.** The mixer treated the listener's local +X as right, but
+the viewer's listener frame is +X forward, +Y left, +Z up (`LLCoordFrame::getAtAxis` /
+`getLeftAxis` / `getUpAxis`). So, before 0.1.4:
+
+| Speaker is | Heard (left / right) | Should be |
+|---|---|---|
+| In front | hard right | centred |
+| Behind | hard left | centred |
+| On your left | centred | hard left |
+| On your right | centred | hard right |
+
+Loudness and distance were always right, which is probably why the owner's 2026-10-22
+panning check passed. 0.1.4 uses local -Y as right, normalises the listener rotation (the
+viewer truncates each part to hundredths), and measures direction in 3D so a voice nearly
+overhead isn't panned hard. Ported from wolfvoice PR #3 by Vlad-BloodMoon (open, not merged
+upstream as of 2026-11-16), which BloodMoon tested in-world on 2026-10-28 and found it
+fixed quiet voice while following a speaker.
+
+To check in-world: stand still facing someone 3-5 m away and have them talk. They should
+sound centred. Turn so they are on your left, then your right, and the voice should move
+to that side. Use headphones and set camera/voice position to the avatar if in doubt.
 
 ### Self-signed certificate
 OpenSim's outbound HTTPS defaults to `NoVerifyCertChain = true` and
