@@ -16,6 +16,7 @@ mod mixer;
 mod proto;
 mod room;
 mod session;
+mod ticker;
 #[cfg(windows)]
 mod win_timer;
 
@@ -296,8 +297,7 @@ impl App {
 
 /// Mixer loop: one pass per room per 20 ms, spread across all available cores.
 async fn mixer_loop(app: Arc<App>) {
-    let mut ticker = tokio::time::interval(TICK);
-    ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+    let mut ticker = ticker::Ticker::new(TICK);
 
     let inflight = Arc::new(std::sync::atomic::AtomicUsize::new(0));
     let mut skipped: u64 = 0;
@@ -1097,8 +1097,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     log::set_boxed_logger(Box::new(RingLogger { inner: inner_logger, started_at }))
         .expect("logger set exactly once, at the very start of main");
 
-    // Before anything is scheduled: without this the 20 ms mixer tick runs every
-    // ~31 ms on Windows. See win_timer.rs.
+    // Before anything is scheduled. The mixer has its own high-resolution clock
+    // (ticker.rs); this is for every other timer. See win_timer.rs.
     #[cfg(windows)]
     win_timer::request_fine_timer();
 

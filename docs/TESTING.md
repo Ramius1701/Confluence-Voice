@@ -346,15 +346,20 @@ sound centred. Turn so they are on your left, then your right, and the voice sho
 to that side. Use headphones and set camera/voice position to the avatar if in doubt.
 
 ### Voice stalls: the 20 ms mixer ticked every 31 ms on Windows
-**Fixed 2026-11-22, in 0.1.5.** Windows wakes sleeping threads on a 15.6 ms timer by
+**Fixed 2026-11-22, in 0.1.6** (0.1.5 only partly fixed it). Windows wakes sleeping threads on a 15.6 ms timer by
 default, so the mixer's 20 ms interval woke after about 31 ms. Measured on the live host:
 321 ticks in 10 s instead of 500. Viewers got about 32 frames a second where they play
 50, so their buffers ran dry, while speakers' audio piled up on the server. The Viewer
 session saw 20-180 ms stalls with no packet loss. The old "mixer overloaded" warning never
 caught this, because it counts only ticks where work overran, not ticks that started late.
-0.1.5 asks Windows for 1 ms timer resolution at startup (`src/win_timer.rs`). The probe
-then gave 500 ticks, every gap 20-22 ms. Since Windows 10 2004 a process has to ask for
-this itself; another program doing so does not help.
+0.1.5 asked Windows for 1 ms timer resolution (`timeBeginPeriod`). **That was not
+enough.** Live 0.1.5 still logged about 7 late ticks a second (gaps 30-44 ms), and the
+same probe that gave 500/500 ticks with the request earlier gave 321-366 in later runs.
+**0.1.6 drives the mixer from a high-resolution waitable timer on its own thread**
+(`src/ticker.rs`, `src/win_timer.rs`; Windows 10 1803+), with absolute 20 ms deadlines.
+It gave 500/500 ticks, every gap at most 20.7 ms, in every run, with or without the 1 ms
+request. Elsewhere, or if that timer is missing, it falls back to tokio's interval with a
+warning. The test `fifty_ticks_take_about_one_second` fails on the coarse timer.
 
 Also in 0.1.5:
 - **Late ticks are counted:** `mixer_ticks_late_total` on the status page and "Ticks late"
@@ -362,8 +367,8 @@ Also in 0.1.5:
 - **A closing session no longer holds up everyone's tick.** The mixer loop used to await
   the peer-connection close and the leave notices inline.
 
-**Check after a restart:** the log says "Windows timer resolution set to 1 ms", and
-`mixer_ticks_late_total` stays at or near 0.
+**Check after a restart:** the log says "mixer clock: high-resolution Windows timer",
+and `mixer_ticks_late_total` stays at or near 0. (It is still counted against 20 ms.)
 
 Still open: one global "in flight" flag skips the tick for every room when any single
 listener's send is slow.
