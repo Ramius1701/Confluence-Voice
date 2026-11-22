@@ -16,6 +16,8 @@ mod mixer;
 mod proto;
 mod room;
 mod session;
+#[cfg(windows)]
+mod win_timer;
 
 use bytes::Bytes;
 use hyper::body::HttpBody as _;
@@ -81,6 +83,10 @@ struct App {
     /// 10s log warning tracks a separate, resetting count for its own rate-limiting —
     /// this one only ever grows, so the status endpoint can show a real lifetime total.
     total_ticks_skipped: std::sync::atomic::AtomicU64,
+    /// Cumulative mixer ticks that came over 10 ms late (a gap of more than 30 ms
+    /// since the previous one), since startup. Skipped ticks only count work that
+    /// overran; a timer that wakes late shows up here instead. See win_timer.rs.
+    total_ticks_late: std::sync::atomic::AtomicU64,
     /// True when this process was launched by the admin page's own /restart (which
     /// sets RESTART_MARKER_ENV on the child it spawns — see admin_handle), false for
     /// every other way this process could have started: a first-ever cold start, a
@@ -104,9 +110,22 @@ impl App {
     /// Tear a session down completely: transport, registry and room membership,
     /// then tell everyone still in the room that this agent has gone.
     async fn drop_session(&self, id: &str) {
+        let (ep, gone) = self.detach_session(id);
+        self.finish_drop(id, ep, gone).await;
+    }
+
+    /// The instant half of drop_session: out of the registry and room, so nothing
+    /// mixes for it or reaps it again.
+    fn detach_session(&self, id: &str) -> (Option<Arc<Endpoint>>, Option<Arc<Session>>) {
         let ep = self.endpoints.write().remove(id);
         let gone = self.sessions.remove(id);
+        (ep, gone)
+    }
 
+    /// The slow half of drop_session: closing the peer connection (DTLS/SCTP) and
+    /// telling the room. The mixer loop runs this in its own task, since awaiting it
+    /// inline held up the 20 ms tick for every room.
+    async fn finish_drop(&self, id: &str, ep: Option<Arc<Endpoint>>, gone: Option<Arc<Session>>) {
         if let Some(ep) = ep {
             ep.close().await;
         }
@@ -283,9 +302,29 @@ async fn mixer_loop(app: Arc<App>) {
     let inflight = Arc::new(std::sync::atomic::AtomicUsize::new(0));
     let mut skipped: u64 = 0;
     let mut last_warned = std::time::Instant::now();
+    let mut last_tick = std::time::Instant::now();
+    let mut late: u64 = 0;
+    let mut last_late_warned = std::time::Instant::now();
 
     loop {
         ticker.tick().await;
+
+        let now = std::time::Instant::now();
+        let gap = now - last_tick;
+        last_tick = now;
+        if gap > TICK + Duration::from_millis(10) {
+            late += 1;
+            app.total_ticks_late.fetch_add(1, Ordering::Relaxed);
+            if last_late_warned.elapsed() >= Duration::from_secs(10) {
+                log::warn!(
+                    "mixer timer late: {late} tick(s) in the last 10s came over 10 ms late \
+                     (latest gap {} ms). Listeners hear this as stalls.",
+                    gap.as_millis()
+                );
+                late = 0;
+                last_late_warned = now;
+            }
+        }
 
         if inflight.load(Ordering::Acquire) != 0 {
             skipped += 1;
@@ -326,7 +365,11 @@ async fn mixer_loop(app: Arc<App>) {
             .map(|ep| ep.session.id.clone())
             .collect();
         for id in dead {
-            app.drop_session(&id).await;
+            // Detach now, so this tick neither mixes nor re-reaps it; the close and
+            // leave notices run off the tick path.
+            let (ep, gone) = app.detach_session(&id);
+            let app = app.clone();
+            tokio::spawn(async move { app.finish_drop(&id, ep, gone).await });
         }
 
         for key in app.sessions.rooms() {
@@ -403,6 +446,7 @@ async fn handle(app: Arc<App>, req: Request<Body>) -> Result<Response<Body>, hyp
             "max_sessions": app.max_sessions,
             "rooms": app.sessions.rooms().len(),
             "mixer_ticks_skipped_total": app.total_ticks_skipped.load(Ordering::Relaxed),
+            "mixer_ticks_late_total": app.total_ticks_late.load(Ordering::Relaxed),
             "ip_allow_list_active": !app.allowed_region_ips.read().is_empty(),
             "turn_configured": !app.ice_servers.read().is_empty(),
         });
@@ -936,6 +980,7 @@ fn admin_status_page(app: &App) -> Response<Body> {
   <div class="bar"><i style="width:{load_pct}%"></i></div></div>
 <div class="stat"><div class="label">Rooms</div><div class="value">{rooms}</div></div>
 <div class="stat"><div class="label">Ticks skipped</div><div class="value">{ticks_skipped}</div></div>
+<div class="stat"><div class="label">Ticks late</div><div class="value">{ticks_late}</div></div>
 <div class="stat"><div class="label">IP allow-list</div><div class="value {allow_class}">{allow_list}</div></div>
 <div class="stat"><div class="label">TURN relay</div><div class="value {turn_class}">{turn}</div></div>
 </div>
@@ -973,6 +1018,7 @@ fn admin_status_page(app: &App) -> Response<Body> {
         load_pct = load_pct,
         rooms = app.sessions.rooms().len(),
         ticks_skipped = app.total_ticks_skipped.load(Ordering::Relaxed),
+        ticks_late = app.total_ticks_late.load(Ordering::Relaxed),
         allow_class = if app.allowed_region_ips.read().is_empty() { "warn" } else { "good" },
         allow_list = if app.allowed_region_ips.read().is_empty() { "off" } else { "on" },
         turn_class = if app.ice_servers.read().is_empty() { "" } else { "good" },
@@ -1051,6 +1097,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     log::set_boxed_logger(Box::new(RingLogger { inner: inner_logger, started_at }))
         .expect("logger set exactly once, at the very start of main");
 
+    // Before anything is scheduled: without this the 20 ms mixer tick runs every
+    // ~31 ms on Windows. See win_timer.rs.
+    #[cfg(windows)]
+    win_timer::request_fine_timer();
+
     let cfg = match Config::load() {
         Ok(c) => c,
         Err(e) => {
@@ -1075,6 +1126,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )),
         started_at,
         total_ticks_skipped: std::sync::atomic::AtomicU64::new(0),
+        total_ticks_late: std::sync::atomic::AtomicU64::new(0),
         started_via_admin_restart: std::env::var(RESTART_MARKER_ENV).is_ok(),
     });
 

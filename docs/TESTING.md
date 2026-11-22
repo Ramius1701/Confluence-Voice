@@ -345,6 +345,29 @@ To check in-world: stand still facing someone 3-5 m away and have them talk. The
 sound centred. Turn so they are on your left, then your right, and the voice should move
 to that side. Use headphones and set camera/voice position to the avatar if in doubt.
 
+### Voice stalls: the 20 ms mixer ticked every 31 ms on Windows
+**Fixed 2026-11-22, in 0.1.5.** Windows wakes sleeping threads on a 15.6 ms timer by
+default, so the mixer's 20 ms interval woke after about 31 ms. Measured on the live host:
+321 ticks in 10 s instead of 500. Viewers got about 32 frames a second where they play
+50, so their buffers ran dry, while speakers' audio piled up on the server. The Viewer
+session saw 20-180 ms stalls with no packet loss. The old "mixer overloaded" warning never
+caught this, because it counts only ticks where work overran, not ticks that started late.
+0.1.5 asks Windows for 1 ms timer resolution at startup (`src/win_timer.rs`). The probe
+then gave 500 ticks, every gap 20-22 ms. Since Windows 10 2004 a process has to ask for
+this itself; another program doing so does not help.
+
+Also in 0.1.5:
+- **Late ticks are counted:** `mixer_ticks_late_total` on the status page and "Ticks late"
+  on the admin page, plus a "mixer timer late" warning, for any tick over 10 ms late.
+- **A closing session no longer holds up everyone's tick.** The mixer loop used to await
+  the peer-connection close and the leave notices inline.
+
+**Check after a restart:** the log says "Windows timer resolution set to 1 ms", and
+`mixer_ticks_late_total` stays at or near 0.
+
+Still open: one global "in flight" flag skips the tick for every room when any single
+listener's send is slow.
+
 ### Self-signed certificate
 OpenSim's outbound HTTPS defaults to `NoVerifyCertChain = true` and
 `NoVerifyCertHostname = true`, so the region's connector accepts a self-signed
