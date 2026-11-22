@@ -346,7 +346,7 @@ sound centred. Turn so they are on your left, then your right, and the voice sho
 to that side. Use headphones and set camera/voice position to the avatar if in doubt.
 
 ### Voice stalls: the 20 ms mixer ticked every 31 ms on Windows
-**Fixed 2026-11-22, in 0.1.6** (0.1.5 only partly fixed it). Windows wakes sleeping threads on a 15.6 ms timer by
+**Fixed 2026-11-22, in 0.1.7** (0.1.5 and 0.1.6 each fixed part of it). Windows wakes sleeping threads on a 15.6 ms timer by
 default, so the mixer's 20 ms interval woke after about 31 ms. Measured on the live host:
 321 ticks in 10 s instead of 500. Viewers got about 32 frames a second where they play
 50, so their buffers ran dry, while speakers' audio piled up on the server. The Viewer
@@ -361,13 +361,21 @@ It gave 500/500 ticks, every gap at most 20.7 ms, in every run, with or without 
 request. Elsewhere, or if that timer is missing, it falls back to tokio's interval with a
 warning. The test `fifty_ticks_take_about_one_second` fails on the coarse timer.
 
+**0.1.6 live still had bursts of late ticks** (gaps of about 33 ms, once 106 ms), but only
+while the host was busy. A test copy with the same binary had 0 when the host was quiet.
+The mixing and sending run on tokio's worker threads, and at Normal priority they wait
+behind everything else on the host. A test copy under 20 s of full load on all 16 threads
+had 147 late ticks at Normal, 0 at AboveNormal, and 0 at High. **0.1.7 runs itself at
+AboveNormal**, and gave 0 late ticks under that same load.
+
 Also in 0.1.5:
 - **Late ticks are counted:** `mixer_ticks_late_total` on the status page and "Ticks late"
   on the admin page, plus a "mixer timer late" warning, for any tick over 10 ms late.
 - **A closing session no longer holds up everyone's tick.** The mixer loop used to await
   the peer-connection close and the leave notices inline.
 
-**Check after a restart:** the log says "mixer clock: high-resolution Windows timer",
+**Check after a restart:** the log says "mixer clock: high-resolution Windows timer" and
+"process priority set to AboveNormal" (Task Manager's Details tab shows it too),
 and `mixer_ticks_late_total` stays at or near 0. (It is still counted against 20 ms.)
 
 Still open: one global "in flight" flag skips the tick for every room when any single

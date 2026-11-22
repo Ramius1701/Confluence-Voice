@@ -53,6 +53,29 @@ extern "system" {
     fn CloseHandle(handle: isize) -> i32;
     fn GetCurrentThread() -> isize;
     fn SetThreadPriority(thread: isize, priority: i32) -> i32;
+    fn SetPriorityClass(process: isize, class: u32) -> i32;
+}
+
+const ABOVE_NORMAL_PRIORITY_CLASS: u32 = 0x8000;
+
+/// Run the whole process at AboveNormal priority.
+///
+/// The tick thread alone is not enough: the mixing and sending run on tokio's
+/// worker threads, and at Normal priority they wait behind anything else busy on
+/// the host (the simulators, Robust, MySQL, a build). Measured 2026-11-22 on the
+/// live host, a test copy under 20 s of full load on all 16 threads: 147 ticks
+/// over 10 ms late at Normal, 0 at AboveNormal, 0 at High. AboveNormal is enough
+/// and still lets the rest of the grid have the CPU when voice is idle, which is
+/// most of the time (a 2-person room uses well under 1% of one core).
+pub fn raise_process_priority() {
+    // SAFETY: pseudo-handle for this process and a documented class value.
+    if unsafe { SetPriorityClass(GetCurrentProcess(), ABOVE_NORMAL_PRIORITY_CLASS) } != 0 {
+        log::info!("process priority set to AboveNormal, so voice is not held up by the rest of the host");
+    } else {
+        log::warn!(
+            "could not raise process priority to AboveNormal; voice may stall while the host is busy"
+        );
+    }
 }
 
 const CREATE_WAITABLE_TIMER_HIGH_RESOLUTION: u32 = 0x2;

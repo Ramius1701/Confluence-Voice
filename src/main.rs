@@ -1100,7 +1100,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Before anything is scheduled. The mixer has its own high-resolution clock
     // (ticker.rs); this is for every other timer. See win_timer.rs.
     #[cfg(windows)]
-    win_timer::request_fine_timer();
+    {
+        win_timer::request_fine_timer();
+        win_timer::raise_process_priority();
+    }
 
     let cfg = match Config::load() {
         Ok(c) => c,
