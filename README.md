@@ -1,3 +1,18 @@
+<p align="center"><img src="docs/assets/confluence-voice-logo.svg" alt="Confluence-Voice" width="160"></p>
+
+<p align="center">
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/Ramius1701/Confluence-Voice?style=flat-square&labelColor=0D1330&color=8B5CF6"></a>
+  <a href="#what-you-need"><img alt="Platform: Windows" src="https://img.shields.io/badge/platform-Windows-8B5CF6?style=flat-square&labelColor=0D1330"></a>
+  <a href="#what-you-need"><img alt="Works with OpenSim regions (os-webrtc-janus)" src="https://img.shields.io/badge/works%20with-OpenSim%20regions-5EEAD4?style=flat-square&labelColor=0D1330"></a>
+  <a href="https://github.com/Ramius1701/Confluence-OpenSim"><img alt="Works with Confluence-OpenSim" src="https://img.shields.io/badge/works%20with-Confluence--OpenSim-5EEAD4?style=flat-square&labelColor=0D1330"></a>
+  <a href="docs/PROTOCOL.md"><img alt="WebRTC" src="https://img.shields.io/badge/voice-WebRTC-A78BFA?style=flat-square&labelColor=0D1330"></a>
+  <a href="#whats-different-from-wolfvoice"><img alt="Spatial voice" src="https://img.shields.io/badge/audio-spatial%20stereo-A78BFA?style=flat-square&labelColor=0D1330"></a>
+  <a href="https://github.com/Ramius1701/Confluence-Voice/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/Ramius1701/Confluence-Voice/ci.yml?branch=master&style=flat-square&labelColor=0D1330&label=CI"></a>
+  <a href="https://github.com/Ramius1701/Confluence-Voice/commits/master"><img alt="Last commit" src="https://img.shields.io/github/last-commit/Ramius1701/Confluence-Voice/master?style=flat-square&labelColor=0D1330&color=4F46E5"></a>
+  <a href="https://github.com/Ramius1701/Confluence-Voice/issues"><img alt="Open issues" src="https://img.shields.io/github/issues/Ramius1701/Confluence-Voice?style=flat-square&labelColor=0D1330&color=4F46E5"></a>
+  <a href="https://confluence.ddns.net"><img alt="Website: confluence.ddns.net" src="https://img.shields.io/badge/website-confluence.ddns.net-FBBF24?style=flat-square&labelColor=0D1330"></a>
+</p>
+
 # Confluence-Voice
 
 Spatial WebRTC voice for [OpenSimulator](http://opensimulator.org) — a **Windows-native**
@@ -286,11 +301,12 @@ bindable address on the machine (a loopback address won't gather a matching ICE
 candidate on the client side — that's an ICE property, not specific to this
 service).
 
-## What's carried over from wolfvoice, unmodified
+## What's carried over from wolfvoice
 
 - `src/mixer.rs`, `src/proto.rs`, `src/room.rs`, `src/session.rs` — the spatial
   mixing math, wire protocol and session/room bookkeeping. None of it is
-  Unix-specific.
+  Unix-specific. Carried over unmodified at first; the fixes since are listed under
+  "What's different" below.
 - `docs/PROTOCOL.md`, `docs/CLIENT.md`, `docs/OPENSIM.md`, `client/voice_llwebrtc.js`
   — protocol reference, viewer support notes and the region-side addon, none of
   which depend on which OS runs the voice backend.
@@ -306,9 +322,16 @@ service).
   other Windows program is. A Windows Service wrapper (so it can start
   automatically and run without a console window) is not implemented and is on hold
   for now; run it from a console, or start it yourself with Task Scheduler.
-- Session IDs are prefixed `cv-` instead of `wv-`; the health endpoint reports
-  `"service": "confluence-voice"`. Everything on the wire to Firestorm/OpenSim is
-  unchanged — those prefixes are purely internal/log labels.
+- The health endpoint reports `"service": "confluence-voice"`. Session ids are bare
+  UUIDs (since 0.1.3; they were `cv-<uuid>`, which a viewer stores as the null UUID, so
+  its ICE candidates and logouts went astray; wolfvoice made the same fix in `2fab8f7`).
+- **Spatial panning** uses the viewer's listener axes, +X forward and +Y left (since
+  0.1.4; before, a voice in front came from the right). Ported from wolfvoice PR #3.
+- **A steady 20 ms mixer clock on Windows** (0.1.5 to 0.1.7). Windows' coarse system
+  timer made the tick about 31 ms, and a busy host delayed it further, which listeners
+  heard as stalls. The mixer now runs on a high-resolution Windows timer thread, and the
+  process runs at AboveNormal priority. `mixer_ticks_late_total` on the status page
+  counts any tick that is still late. See [docs/TESTING.md](docs/TESTING.md).
 
 ## Known limitations
 
