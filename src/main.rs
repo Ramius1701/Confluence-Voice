@@ -657,6 +657,12 @@ async fn admin_server(app: Arc<App>, bind: String) {
 async fn admin_handle(app: Arc<App>, req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
     let resp = match (req.method(), req.uri().path()) {
         (&Method::GET, "/") => admin_status_page(&app),
+        (&Method::GET, "/logo.svg") => Response::builder()
+            .status(StatusCode::OK)
+            .header("content-type", "image/svg+xml")
+            .header("cache-control", "max-age=86400")
+            .body(Body::from(LOGO_SVG))
+            .unwrap(),
         (&Method::POST, "/stop") => {
             log::warn!("admin: stop requested");
             admin_exit_shortly();
@@ -882,11 +888,15 @@ fn admin_plain_response(msg: &str) -> Response<Body> {
         .header("content-type", "text/html; charset=utf-8")
         .body(Body::from(format!(
             r#"<!doctype html>
-<html><head><meta charset="utf-8"><title>Confluence-Voice admin</title>{ADMIN_CSS}</head>
+<html><head><meta charset="utf-8"><title>Confluence-Voice admin</title><link rel="icon" type="image/svg+xml" href="/logo.svg">{ADMIN_CSS}</head>
 <body><div class="wrap"><section><p>{msg}</p><p><a href="/">&larr; Back to dashboard</a></p></section></div></body></html>"#,
         )))
         .unwrap()
 }
+
+/// The project logo (docs/assets), served at /logo.svg for the admin page's header and
+/// tab icon. Built into the binary, so nothing extra has to sit beside the exe.
+const LOGO_SVG: &str = include_str!("../docs/assets/confluence-voice-logo.svg");
 
 /// Shared styling for the admin page and its action-confirmation responses. A single
 /// dark/light-aware stylesheet, inlined (no external fonts or scripts) since this is
@@ -913,6 +923,8 @@ body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background
 a { color: var(--accent); }
 header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.6rem; margin-bottom: 1.4rem; }
 h1 { font-size: 1.35rem; margin: 0; }
+.brand { display: flex; align-items: center; gap: 0.75rem; }
+.brand img { width: 2.6rem; height: 2.6rem; }
 .meta { color: var(--muted); font-size: 0.82rem; margin: 0.15rem 0 0; }
 .badge { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.3rem 0.75rem; border-radius: 999px; font-size: 0.8rem; font-weight: 600; }
 .badge.good { background: var(--good-bg); color: var(--good); }
@@ -967,10 +979,11 @@ fn admin_status_page(app: &App) -> Response<Body> {
         r#"<!doctype html>
 <html><head><meta charset="utf-8"><title>Confluence-Voice admin</title>
 <meta http-equiv="refresh" content="{refresh_secs}">
+<link rel="icon" type="image/svg+xml" href="/logo.svg">
 {ADMIN_CSS}</head>
 <body><div class="wrap">
 <header>
-<div><h1>Confluence-Voice</h1><p class="meta">v{version} &middot; auto-refreshes every {refresh_secs}s</p></div>
+<div class="brand"><img src="/logo.svg" alt=""><div><h1>Confluence-Voice</h1><p class="meta">v{version} &middot; auto-refreshes every {refresh_secs}s</p></div></div>
 <span class="badge {status_class}"><span class="dot"></span>{status_text}</span>
 </header>
 {restart_notice}
